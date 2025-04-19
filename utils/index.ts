@@ -50,9 +50,11 @@ export const OpenAIStream = async (messages: Message[]) => {
           stream.write(text);
         }
       } catch (e) {
-        console.error("Parsing error:", e);
-        stream.destroy(e);
+        const error = e instanceof Error ? e : new Error(String(e));
+        console.error("Parsing error:", error);
+        stream.destroy(error);
       }
+      
     }
   });
 
