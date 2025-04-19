@@ -16,27 +16,21 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
   try {
     const { messages } = req.body as { messages: Message[] };
 
-    const stream = await OpenAIStream(messages);
+    const charLimit = 12000;
+    let charCount = 0;
+    const messagesToSend: Message[] = [];
 
-    res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache");
-    res.setHeader("Connection", "keep-alive");
+    for (const message of messages) {
+      if (charCount + message.content.length > charLimit) break;
+      charCount += message.content.length;
+      messagesToSend.push(message);
+    }
 
-    stream.on("data", (chunk) => {
-      res.write(chunk);
-    });
+    const responseText = await OpenAIStream(messagesToSend);
 
-    stream.on("end", () => {
-      res.write("data: [DONE]\n\n");
-      res.end();
-    });
-
-    stream.on("error", (err) => {
-      console.error("Stream error:", err);
-      res.status(500).end();
-    });
-  } catch (err) {
-    console.error("Handler error:", err);
+    res.status(200).json({ content: responseText });
+  } catch (error) {
+    console.error("Handler error:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 };
