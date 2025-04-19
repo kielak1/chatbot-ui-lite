@@ -1,36 +1,43 @@
+import type { NextApiRequest, NextApiResponse } from "next";
 import { Message } from "@/types";
 import { OpenAIStream } from "@/utils";
 
 export const config = {
-  runtime: "edge"
+  api: {
+    bodyParser: true,
+  },
 };
 
-const handler = async (req: Request): Promise<Response> => {
+const handler = async (req: NextApiRequest, res: NextApiResponse) => {
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
   try {
-    console.log(process.env.OPENAI_API_KEY)
-    const { messages } = (await req.json()) as {
-      messages: Message[];
-    };
+    const { messages } = req.body as { messages: Message[] };
 
-    const charLimit = 12000;
-    let charCount = 0;
-    let messagesToSend = [];
+    const stream = await OpenAIStream(messages);
 
-    for (let i = 0; i < messages.length; i++) {
-      const message = messages[i];
-      if (charCount + message.content.length > charLimit) {
-        break;
-      }
-      charCount += message.content.length;
-      messagesToSend.push(message);
-    }
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
 
-    const stream = await OpenAIStream(messagesToSend);
+    stream.on("data", (chunk) => {
+      res.write(chunk);
+    });
 
-    return new Response(stream);
-  } catch (error) {
-    console.error(error);
-    return new Response("Error", { status: 500 });
+    stream.on("end", () => {
+      res.write("data: [DONE]\n\n");
+      res.end();
+    });
+
+    stream.on("error", (err) => {
+      console.error("Stream error:", err);
+      res.status(500).end();
+    });
+  } catch (err) {
+    console.error("Handler error:", err);
+    res.status(500).json({ error: "Internal server error" });
   }
 };
 
