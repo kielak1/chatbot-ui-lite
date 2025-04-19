@@ -30,6 +30,7 @@ export default function Home() {
         messages: updatedMessages
       })
     });
+    console.log("🔎 Odpowiedź z API:", response);
 
     if (!response.ok) {
       setLoading(false);
