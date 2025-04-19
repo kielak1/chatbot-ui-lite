@@ -7,6 +7,7 @@ export const config = {
 
 const handler = async (req: Request): Promise<Response> => {
   try {
+    console.log(process.env.OPENAI_API_KEY)
     const { messages } = (await req.json()) as {
       messages: Message[];
     };
