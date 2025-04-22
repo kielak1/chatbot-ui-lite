@@ -40,7 +40,15 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
 
     console.log("✅ Odpowiedź od OpenAI:", responseText);
 
-    res.status(200).json({ content: responseText });
+
+
+
+   // res.status(200).json({ content: responseText });
+
+    res.setHeader("Content-Type", "text/plain");
+    res.status(200).send(responseText);
+    
+
   } catch (error: any) {
     console.error("🔥 Błąd w handlerze:", error);
     res.status(500).json({ error: "Internal server error" });
