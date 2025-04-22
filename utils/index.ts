@@ -1,4 +1,5 @@
-import { Message, OpenAIModel } from "@/types";
+// utils/index.ts
+import { Message } from "@/types";
 
 export const OpenAIStream = async (messages: Message[]) => {
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -8,12 +9,9 @@ export const OpenAIStream = async (messages: Message[]) => {
     },
     method: "POST",
     body: JSON.stringify({
-      model: OpenAIModel.DAVINCI_TURBO,
+      model: "gpt-4.1",
       messages: [
-        {
-          role: "system",
-          content: `You are a helpful, friendly assistant.`,
-        },
+        { role: "system", content: "You are a helpful assistant." },
         ...messages,
       ],
       temperature: 0.1,
@@ -21,30 +19,16 @@ export const OpenAIStream = async (messages: Message[]) => {
     }),
   });
 
-  const reader = res.body?.getReader();
-  const decoder = new TextDecoder("utf-8");
-  let fullText = "";
-
-  while (reader) {
-    const { done, value } = await reader.read();
-    if (done) break;
-
-    const chunk = decoder.decode(value, { stream: true });
-    const lines = chunk.split("\n").filter((line) => line.trim() !== "");
-
-    for (const line of lines) {
-      if (line.startsWith("data: ")) {
-        const jsonStr = line.replace("data: ", "");
-        if (jsonStr === "[DONE]") break;
-
-        const json = JSON.parse(jsonStr);
-        const content = json.choices?.[0]?.delta?.content;
-        if (content) {
-          fullText += content;
-        }
-      }
-    }
+  if (!res.ok) {
+    const errorText = await res.text();
+    console.error(
+      "❌ OpenAI API error:",
+      res.status,
+      res.statusText,
+      errorText
+    );
+    throw new Error(`[${res.status}] ${res.statusText || "OpenAI API error"}`);
   }
 
-  return fullText || "Brak odpowiedzi.";
+  return res.body; // strumień zwracany do API route
 };

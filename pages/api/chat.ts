@@ -1,47 +1,70 @@
+// pages/api/chat.ts
 import type { NextApiRequest, NextApiResponse } from "next";
 import { Message } from "@/types";
 import { OpenAIStream } from "@/utils";
 
 export const config = {
   api: {
-    bodyParser: true,
+    bodyParser: false,
   },
 };
 
 const handler = async (req: NextApiRequest, res: NextApiResponse) => {
-  console.log("🔹 Żądanie odebrane:", req.method, req.url);
-
-  // Nagłówki CORS — tymczasowo zezwalamy na wszystko
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Headers", "*");
-
   if (req.method !== "POST") {
-    console.warn("⛔ Niewłaściwa metoda:", req.method);
     return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
-    const { messages } = req.body as { messages: Message[] };
-    console.log("📩 Odebrane wiadomości:", messages);
-
-    const charLimit = 12000;
-    let charCount = 0;
-    const messagesToSend: Message[] = [];
-
-    for (const message of messages) {
-      if (charCount + message.content.length > charLimit) break;
-      charCount += message.content.length;
-      messagesToSend.push(message);
+    const buffers: Buffer[] = [];
+    for await (const chunk of req) {
+      buffers.push(chunk);
     }
 
-    console.log("📦 Wysyłane do OpenAI:", messagesToSend);
+    const rawBody = Buffer.concat(buffers).toString("utf-8");
+    const { messages } = JSON.parse(rawBody) as { messages: Message[] };
 
-    const responseText = await OpenAIStream(messagesToSend);
+    const stream = await OpenAIStream(messages);
 
-    console.log("✅ Odpowiedź od OpenAI:", responseText);
+    if (!stream) {
+      return res.status(500).send("Brak odpowiedzi.");
+    }
 
-    res.setHeader("Content-Type", "text/plain");
-    res.status(200).send(responseText);
+    res.writeHead(200, {
+      "Content-Type": "text/plain",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    });
+
+    const reader = stream.getReader();
+    const decoder = new TextDecoder("utf-8");
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value, { stream: true });
+      const lines = chunk.split("\n").filter((line) => line.trim() !== "");
+
+      for (const line of lines) {
+        if (line.startsWith("data: ")) {
+          const jsonStr = line.replace("data: ", "").trim();
+          if (jsonStr === "[DONE]") break;
+
+          try {
+            const json = JSON.parse(jsonStr);
+            const content = json.choices?.[0]?.delta?.content;
+            if (content) {
+              res.write(content);
+            }
+          } catch (err) {
+            console.warn("⚠️ Błąd parsowania JSON z OpenAI:", line);
+            continue;
+          }
+        }
+      }
+    }
+
+    res.end();
   } catch (error: any) {
     console.error("🔥 Błąd w handlerze:", error);
     res.status(500).json({ error: "Internal server error" });
