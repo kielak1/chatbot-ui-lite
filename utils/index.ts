@@ -8,7 +8,7 @@ export const OpenAIStream = async (messages: Message[]) => {
     },
     method: "POST",
     body: JSON.stringify({
-      model: OpenAIModel.DAVINCI_TURBO, // lub np. "gpt-3.5-turbo"
+      model: OpenAIModel.DAVINCI_TURBO,
       messages: [
         {
           role: "system",
@@ -16,19 +16,35 @@ export const OpenAIStream = async (messages: Message[]) => {
         },
         ...messages,
       ],
-      max_tokens: 800,
-      temperature: 0.0,
-      stream: false,
+      temperature: 0.1,
+      stream: true,
     }),
   });
 
-  if (!res.ok) {
-    const errorText = await res.text();
-    console.error("OpenAI error:", errorText);
-    throw new Error("OpenAI API returned an error");
+  const reader = res.body?.getReader();
+  const decoder = new TextDecoder("utf-8");
+  let fullText = "";
+
+  while (reader) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    const chunk = decoder.decode(value, { stream: true });
+    const lines = chunk.split("\n").filter((line) => line.trim() !== "");
+
+    for (const line of lines) {
+      if (line.startsWith("data: ")) {
+        const jsonStr = line.replace("data: ", "");
+        if (jsonStr === "[DONE]") break;
+
+        const json = JSON.parse(jsonStr);
+        const content = json.choices?.[0]?.delta?.content;
+        if (content) {
+          fullText += content;
+        }
+      }
+    }
   }
 
-  const json = await res.json();
-  const text = json.choices?.[0]?.message?.content;
-  return text || "Brak odpowiedzi.";
+  return fullText || "Brak odpowiedzi.";
 };
