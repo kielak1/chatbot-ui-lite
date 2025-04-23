@@ -65,7 +65,7 @@ export default function Home() {
         <link rel="icon" href="/favicon.ico" />
       </Head>
 
-      <main className="mx-auto max-w-2xl p-4 sm:p-8">
+      <main className="mx-auto max-w-6xl p-4 sm:p-8">
         <Navbar />
         <Chat
           messages={messages}

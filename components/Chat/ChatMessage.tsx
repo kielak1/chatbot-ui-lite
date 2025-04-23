@@ -17,7 +17,7 @@ export const ChatMessage: FC<Props> = ({ message }) => {
           message.role === "assistant"
             ? "bg-neutral-200 text-neutral-900"
             : "bg-blue-500 text-white"
-        } rounded-2xl px-3 py-2 max-w-[67%] whitespace-pre-wrap`}
+        } rounded-2xl px-3 py-2 w-[95%] whitespace-pre-wrap`}
         style={{ overflowWrap: "anywhere" }}
       >
         {message.content}
